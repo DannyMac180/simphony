@@ -73,6 +73,24 @@ symphony status  # reports the release process PID when available
 symphony stop    # stops the release process when running as a release
 ```
 
+Agent-readable setup and config commands:
+
+```bash
+symphony setup schema --json        # print required setup fields
+symphony setup status --json        # print setup readiness and paths
+symphony setup apply --json < file  # save setup JSON and generate WORKFLOW.md
+symphony config get --json          # print non-secret config and secret presence
+symphony config set --json < file   # patch config, update keychain if needed, regenerate workflow
+symphony workflow render            # print generated WORKFLOW.md
+symphony workflow validate          # validate the generated WORKFLOW.md
+symphony status --json              # print runtime and setup status
+```
+
+These commands are intended for agent-mediated installs. A user can ask their coding agent to
+install Symphony, run `symphony setup schema --json`, collect only the missing required values, and
+then apply the setup JSON. The Linear API key is written through the same OS keychain path used by
+the web setup UI and is never returned by `config get`.
+
 Managed setup writes non-secret settings to:
 
 - macOS: `~/Library/Application Support/Symphony/settings.json`
@@ -150,10 +168,10 @@ Notes:
 
 - If a value is missing, defaults are used.
 - Safer Codex defaults are used when policy fields are omitted:
-  - `codex.approval_policy` defaults to `{"reject":{"sandbox_approval":true,"rules":true,"mcp_elicitations":true}}`
+  - `codex.approval_policy` defaults to `{"granular":{"sandbox_approval":true,"rules":true,"mcp_elicitations":true}}`
   - `codex.thread_sandbox` defaults to `workspace-write`
   - `codex.turn_sandbox_policy` defaults to a `workspaceWrite` policy rooted at the current issue workspace
-- Supported `codex.approval_policy` values depend on the targeted Codex app-server version. In the current local Codex schema, string values include `untrusted`, `on-failure`, `on-request`, and `never`, and object-form `reject` is also supported.
+- Supported `codex.approval_policy` values depend on the targeted Codex app-server version. In the current local Codex schema, string values include `untrusted`, `on-failure`, `on-request`, and `never`, and object-form `granular` is also supported.
 - Supported `codex.thread_sandbox` values: `read-only`, `workspace-write`, `danger-full-access`.
 - When `codex.turn_sandbox_policy` is set explicitly, Symphony passes the map through to Codex
   unchanged. Compatibility then depends on the targeted Codex app-server version rather than local

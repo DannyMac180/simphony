@@ -721,8 +721,20 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
 
   test "config reads defaults for optional settings" do
     previous_linear_api_key = System.get_env("LINEAR_API_KEY")
-    on_exit(fn -> restore_env("LINEAR_API_KEY", previous_linear_api_key) end)
+    previous_secret_store_module = Application.get_env(:symphony_elixir, :secret_store_module)
+
+    on_exit(fn ->
+      restore_env("LINEAR_API_KEY", previous_linear_api_key)
+
+      if previous_secret_store_module do
+        Application.put_env(:symphony_elixir, :secret_store_module, previous_secret_store_module)
+      else
+        Application.delete_env(:symphony_elixir, :secret_store_module)
+      end
+    end)
+
     System.delete_env("LINEAR_API_KEY")
+    Application.put_env(:symphony_elixir, :secret_store_module, SymphonyElixir.SecretStore.Unsupported)
 
     write_workflow_file!(Workflow.workflow_file_path(),
       workspace_root: nil,
@@ -747,7 +759,7 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
     assert config.codex.command == "codex app-server"
 
     assert config.codex.approval_policy == %{
-             "reject" => %{
+             "granular" => %{
                "sandbox_approval" => true,
                "rules" => true,
                "mcp_elicitations" => true
@@ -1030,14 +1042,14 @@ defmodule SymphonyElixir.WorkspaceAndConfigTest do
              Schema.parse(%{
                tracker: %{api_key: "$#{empty_secret_env}"},
                workspace: %{root: "$#{missing_workspace_env}"},
-               codex: %{approval_policy: %{reject: %{sandbox_approval: true}}}
+               codex: %{approval_policy: %{granular: %{sandbox_approval: true}}}
              })
 
     assert settings.tracker.api_key == nil
     assert settings.workspace.root == Path.join(System.tmp_dir!(), "symphony_workspaces")
 
     assert settings.codex.approval_policy == %{
-             "reject" => %{"sandbox_approval" => true}
+             "granular" => %{"sandbox_approval" => true}
            }
 
     assert {:ok, settings} =

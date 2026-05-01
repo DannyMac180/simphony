@@ -1,9 +1,52 @@
 defmodule SymphonyElixir.CLITest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
-  alias SymphonyElixir.CLI
+  alias SymphonyElixir.{CLI, SecretStore, SettingsStore}
 
   @ack_flag "--i-understand-that-this-will-be-running-without-the-usual-guardrails"
+
+  defmodule FakeSecretStore do
+    @behaviour SecretStore
+
+    def available?, do: true
+
+    def get(_service, account) do
+      case Agent.get(__MODULE__, &Map.get(&1, account)) do
+        nil -> {:error, :not_found}
+        value -> {:ok, value}
+      end
+    end
+
+    def put(_service, account, value) do
+      Agent.update(__MODULE__, &Map.put(&1, account, value))
+    end
+  end
+
+  setup do
+    config_dir = Path.join(System.tmp_dir!(), "symphony-cli-test-#{System.unique_integer([:positive])}")
+
+    start_supervised!(%{
+      id: FakeSecretStore,
+      start: {Agent, :start_link, [fn -> %{} end, [name: FakeSecretStore]]}
+    })
+
+    Application.put_env(:symphony_elixir, :settings_config_dir, config_dir)
+    Application.put_env(:symphony_elixir, :secret_store_module, FakeSecretStore)
+    previous_linear_api_key = System.get_env("LINEAR_API_KEY")
+    System.delete_env("LINEAR_API_KEY")
+
+    on_exit(fn ->
+      restore_env("LINEAR_API_KEY", previous_linear_api_key)
+      Application.delete_env(:symphony_elixir, :settings_config_dir)
+      Application.delete_env(:symphony_elixir, :secret_store_module)
+      Application.delete_env(:symphony_elixir, :workflow_file_path)
+      Application.delete_env(:symphony_elixir, :server_port_override)
+      Application.delete_env(:symphony_elixir, :runtime_mode)
+      File.rm_rf(config_dir)
+    end)
+
+    %{config_dir: config_dir}
+  end
 
   test "returns the guardrails acknowledgement banner when the flag is missing" do
     parent = self()
@@ -187,7 +230,113 @@ defmodule SymphonyElixir.CLITest do
       })
 
     assert {:ok, :halt} = CLI.evaluate(["status"], deps)
-    assert_received {:printed, "Symphony status: setup required"}
+    assert_received {:printed, message}
+    assert message =~ "Symphony status:"
+  end
+
+  test "setup schema prints the agent-readable setup contract" do
+    parent = self()
+
+    deps =
+      deps(%{
+        print: fn message ->
+          send(parent, {:printed, Jason.decode!(message)})
+          :ok
+        end
+      })
+
+    assert {:ok, :halt} = CLI.evaluate(["setup", "schema", "--json"], deps)
+    assert_received {:printed, schema}
+    assert schema["version"] == 1
+    assert Enum.any?(schema["fields"], &(&1["key"] == "linear_api_key" and &1["secret"]))
+  end
+
+  test "setup apply saves JSON setup from stdin and writes workflow", %{config_dir: config_dir} do
+    payload =
+      Jason.encode!(%{
+        "linear_api_key" => "lin_agent",
+        "linear_project_slug" => "agent-project",
+        "repo_url" => "https://github.com/acme/agent.git",
+        "workspace_root" => "/tmp/agent-workspaces",
+        "codex_command" => "codex app-server",
+        "active_states" => ["Todo"],
+        "terminal_states" => ["Done"],
+        "server_port" => 8057
+      })
+
+    parent = self()
+
+    deps =
+      deps(%{
+        read_stdin: fn -> payload end,
+        print: fn message ->
+          send(parent, {:printed, Jason.decode!(message)})
+          :ok
+        end
+      })
+
+    assert {:ok, :halt} = CLI.evaluate(["setup", "apply", "--json"], deps)
+    assert_received {:printed, %{"ok" => true, "settings" => %{"linear_project_slug" => "agent-project"}}}
+    assert {:ok, "lin_agent"} = SecretStore.get(:linear_api_key)
+    assert File.regular?(Path.join(config_dir, "WORKFLOW.md"))
+  end
+
+  test "config get redacts stored secrets" do
+    assert {:ok, _settings} =
+             SettingsStore.save_setup(%{
+               "linear_api_key" => "lin_agent",
+               "linear_project_slug" => "agent-project",
+               "repo_url" => "https://github.com/acme/agent.git",
+               "workspace_root" => "/tmp/agent-workspaces",
+               "codex_command" => "codex app-server",
+               "active_states" => ["Todo"],
+               "terminal_states" => ["Done"],
+               "server_port" => 8057
+             })
+
+    parent = self()
+
+    deps =
+      deps(%{
+        print: fn message ->
+          send(parent, {:printed, Jason.decode!(message)})
+          :ok
+        end
+      })
+
+    assert {:ok, :halt} = CLI.evaluate(["config", "get", "--json"], deps)
+    assert_received {:printed, config}
+    assert config["secrets"]["linear_api_key"] == "stored"
+    refute inspect(config) =~ "lin_agent"
+  end
+
+  test "config set merges a JSON patch and regenerates workflow" do
+    assert {:ok, _settings} =
+             SettingsStore.save_setup(%{
+               "linear_api_key" => "lin_agent",
+               "linear_project_slug" => "old-project",
+               "repo_url" => "https://github.com/acme/agent.git",
+               "workspace_root" => "/tmp/agent-workspaces",
+               "codex_command" => "codex app-server",
+               "active_states" => ["Todo"],
+               "terminal_states" => ["Done"],
+               "server_port" => 8057
+             })
+
+    parent = self()
+
+    deps =
+      deps(%{
+        read_stdin: fn -> Jason.encode!(%{"linear_project_slug" => "new-project"}) end,
+        print: fn message ->
+          send(parent, {:printed, Jason.decode!(message)})
+          :ok
+        end
+      })
+
+    assert {:ok, :halt} = CLI.evaluate(["config", "set", "--json"], deps)
+    assert_received {:printed, %{"ok" => true, "settings" => %{"linear_project_slug" => "new-project"}}}
+    assert File.read!(SettingsStore.workflow_path()) =~ ~s(project_slug: "new-project")
   end
 
   defp deps(overrides) do
@@ -200,9 +349,13 @@ defmodule SymphonyElixir.CLITest do
         set_runtime_mode: fn _mode -> :ok end,
         ensure_all_started: fn -> {:ok, [:symphony_elixir]} end,
         open_browser: fn _url -> :ok end,
+        read_stdin: fn -> "{}" end,
         print: fn _message -> :ok end
       },
       overrides
     )
   end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 end
