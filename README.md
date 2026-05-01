@@ -46,10 +46,13 @@ instruction:
 The agent should run:
 
 ```bash
-curl -fsSL https://github.com/DannyMac180/simphony/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/DannyMac180/simphony/releases/latest/download/install.sh | SYMPHONY_AGENT_SETUP=1 sh
 symphony setup schema --json
 symphony setup status --json
 ```
+
+`SYMPHONY_AGENT_SETUP=1` installs the CLI without opening the manual setup screen. After the agent
+collects and saves the required values, `symphony start` opens the live dashboard at `/`.
 
 After collecting the required values, the agent can save setup by passing JSON on stdin:
 

@@ -249,6 +249,67 @@ defmodule SymphonyElixir.CLITest do
     assert_received {:printed, schema}
     assert schema["version"] == 1
     assert Enum.any?(schema["fields"], &(&1["key"] == "linear_api_key" and &1["secret"]))
+    assert Enum.find(schema["fields"], &(&1["key"] == "active_states"))["default"] == ["Todo", "In Progress", "Rework"]
+  end
+
+  test "managed start opens setup before configuration" do
+    parent = self()
+
+    deps =
+      deps(%{
+        ensure_all_started: fn -> {:ok, [:symphony_elixir]} end,
+        open_browser: fn url ->
+          send(parent, {:opened, url})
+          :ok
+        end
+      })
+
+    assert :ok = CLI.evaluate(["start"], deps)
+    assert_received {:opened, "http://127.0.0.1:7957/setup"}
+  end
+
+  test "managed start opens dashboard after configuration" do
+    parent = self()
+
+    assert {:ok, _settings} =
+             SettingsStore.save_setup(%{
+               "linear_api_key" => "lin_agent",
+               "linear_project_slug" => "agent-project",
+               "repo_url" => "https://github.com/acme/agent.git",
+               "workspace_root" => "/tmp/agent-workspaces",
+               "codex_command" => "codex app-server",
+               "active_states" => ["Todo"],
+               "terminal_states" => ["Done"],
+               "server_port" => 8057
+             })
+
+    deps =
+      deps(%{
+        ensure_all_started: fn -> {:ok, [:symphony_elixir]} end,
+        open_browser: fn url ->
+          send(parent, {:opened, url})
+          :ok
+        end
+      })
+
+    assert :ok = CLI.evaluate(["start"], deps)
+    assert_received {:opened, "http://127.0.0.1:8057/"}
+  end
+
+  test "managed start does not open browser with no-open" do
+    parent = self()
+
+    deps =
+      deps(%{
+        ensure_all_started: fn -> {:ok, [:symphony_elixir]} end,
+        open_browser: fn url ->
+          send(parent, {:opened, url})
+          :ok
+        end
+      })
+
+    assert :ok = CLI.evaluate(["start", "--no-open"], deps)
+    refute_received {:opened, _url}
   end
 
   test "setup apply saves JSON setup from stdin and writes workflow", %{config_dir: config_dir} do

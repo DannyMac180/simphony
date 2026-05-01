@@ -86,6 +86,11 @@ settings_file() {
   esac
 }
 
+workflow_file() {
+  settings="\$(settings_file)"
+  printf '%s\n' "\$(dirname "\$settings")/WORKFLOW.md"
+}
+
 symphony_port() {
   settings="\$(settings_file)"
   if [ -f "\$settings" ]; then
@@ -103,15 +108,45 @@ open_setup() {
   open_url "http://127.0.0.1:\$(symphony_port)/setup"
 }
 
+open_dashboard() {
+  open_url "http://127.0.0.1:\$(symphony_port)/"
+}
+
+configured() {
+  test -f "\$(settings_file)" && test -f "\$(workflow_file)"
+}
+
+should_open_browser() {
+  if [ "\${SYMPHONY_NO_OPEN:-}" = "1" ]; then
+    return 1
+  fi
+
+  for arg in "\$@"; do
+    if [ "\$arg" = "--no-open" ]; then
+      return 1
+    fi
+  done
+
+  return 0
+}
+
 case "\${1:-start}" in
   start)
     shift || true
-    (sleep 2; open_setup) &
+    if should_open_browser "\$@"; then
+      if configured; then
+        (sleep 2; open_dashboard) &
+      else
+        (sleep 2; open_setup) &
+      fi
+    fi
     exec "\$release_bin" start "\$@"
     ;;
   setup)
     shift || true
-    (sleep 2; open_setup) &
+    if should_open_browser "\$@"; then
+      (sleep 2; open_setup) &
+    fi
     exec "\$release_bin" start "\$@"
     ;;
   status)
@@ -134,4 +169,8 @@ case ":$PATH:" in
   *) echo "Add ${install_dir} to PATH to run symphony from any shell." ;;
 esac
 
-"${install_dir}/symphony" start
+if [ "${SYMPHONY_AGENT_SETUP:-}" = "1" ] || [ "${SYMPHONY_SKIP_START:-}" = "1" ]; then
+  echo "Skipping automatic start. Run ${install_dir}/symphony start when setup is complete."
+else
+  "${install_dir}/symphony" start
+fi

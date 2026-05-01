@@ -8,7 +8,7 @@ defmodule SymphonyElixir.SettingsStore do
   @settings_file "settings.json"
   @workflow_file "WORKFLOW.md"
   @default_port 7957
-  @default_active_states ["Todo", "In Progress"]
+  @default_active_states ["Todo", "In Progress", "Rework"]
   @default_terminal_states ["Closed", "Cancelled", "Canceled", "Duplicate", "Done"]
 
   @type settings :: map()
