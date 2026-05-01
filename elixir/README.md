@@ -91,6 +91,11 @@ install Symphony, run `symphony setup schema --json`, collect only the missing r
 then apply the setup JSON. The Linear API key is written through the same OS keychain path used by
 the web setup UI and is never returned by `config get`.
 
+For agent-mediated installs, set `SYMPHONY_AGENT_SETUP=1` when running `install.sh` so the installer
+does not open the manual setup screen before the agent has collected configuration. Once setup is
+saved, run `symphony start`; the installed wrapper opens the dashboard at `/` when configuration is
+present.
+
 Managed setup writes non-secret settings to:
 
 - macOS: `~/Library/Application Support/Symphony/settings.json`

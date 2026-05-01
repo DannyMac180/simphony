@@ -108,7 +108,7 @@ defmodule SymphonyElixir.SettingsStoreTest do
         "repo_url" => "git@github.com:acme/app.git",
         "workspace_root" => "/tmp/workspaces",
         "codex_command" => "codex app-server",
-        "active_states" => ["Todo", "In Progress"],
+        "active_states" => ["Todo", "In Progress", "Rework"],
         "terminal_states" => ["Done"],
         "server_port" => 7957
       })

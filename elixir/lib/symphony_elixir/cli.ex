@@ -379,7 +379,7 @@ defmodule SymphonyElixir.CLI do
 
   defp managed_port(opts) do
     case Keyword.get_values(opts, :port) do
-      [] -> SettingsStore.default_port()
+      [] -> SettingsStore.form_values()["server_port"] || SettingsStore.default_port()
       values -> List.last(values)
     end
   end
