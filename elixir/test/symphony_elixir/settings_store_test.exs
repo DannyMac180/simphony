@@ -63,6 +63,18 @@ defmodule SymphonyElixir.SettingsStoreTest do
              "/home/alex/.config/symphony"
   end
 
+  test "linux secret store returns unavailable when secret-tool is missing" do
+    previous_path = System.get_env("PATH")
+    System.put_env("PATH", "/tmp/symphony-missing-secret-tool")
+
+    try do
+      assert {:error, :unavailable} = SecretStore.Linux.get("Symphony", "linear_api_key")
+      assert {:error, :unavailable} = SecretStore.Linux.put("Symphony", "linear_api_key", "secret")
+    after
+      restore_env("PATH", previous_path)
+    end
+  end
+
   test "saves nonsecret settings, stores Linear key in the secret store, and writes workflow", %{config_dir: config_dir} do
     assert {:ok, settings} =
              SettingsStore.save_setup(%{
@@ -143,6 +155,9 @@ defmodule SymphonyElixir.SettingsStoreTest do
       |> Keyword.merge(server: false, secret_key_base: String.duplicate("s", 64))
 
     Application.put_env(:symphony_elixir, SymphonyElixirWeb.Endpoint, endpoint_config)
-    start_supervised!({SymphonyElixirWeb.Endpoint, []})
+
+    unless Process.whereis(SymphonyElixirWeb.Endpoint) do
+      start_supervised!({SymphonyElixirWeb.Endpoint, []})
+    end
   end
 end

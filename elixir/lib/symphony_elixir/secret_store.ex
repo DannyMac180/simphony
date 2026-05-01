@@ -59,17 +59,29 @@ defmodule SymphonyElixir.SecretStore.MacOS do
 
   @spec get(String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
   def get(service, account) do
-    case System.cmd("security", ["find-generic-password", "-s", service, "-a", account, "-w"], stderr_to_stdout: true) do
-      {value, 0} -> {:ok, String.trim_trailing(value)}
-      {message, status} -> {:error, {:security, status, String.trim(message)}}
+    case System.find_executable("security") do
+      nil ->
+        {:error, :unavailable}
+
+      executable ->
+        case System.cmd(executable, ["find-generic-password", "-s", service, "-a", account, "-w"], stderr_to_stdout: true) do
+          {value, 0} -> {:ok, String.trim_trailing(value)}
+          {message, status} -> {:error, {:security, status, String.trim(message)}}
+        end
     end
   end
 
   @spec put(String.t(), String.t(), String.t()) :: :ok | {:error, term()}
   def put(service, account, value) do
-    case System.cmd("security", ["add-generic-password", "-U", "-s", service, "-a", account, "-w", value], stderr_to_stdout: true) do
-      {_message, 0} -> :ok
-      {message, status} -> {:error, {:security, status, String.trim(message)}}
+    case System.find_executable("security") do
+      nil ->
+        {:error, :unavailable}
+
+      executable ->
+        case System.cmd(executable, ["add-generic-password", "-U", "-s", service, "-a", account, "-w", value], stderr_to_stdout: true) do
+          {_message, 0} -> :ok
+          {message, status} -> {:error, {:security, status, String.trim(message)}}
+        end
     end
   end
 end
@@ -84,27 +96,40 @@ defmodule SymphonyElixir.SecretStore.Linux do
 
   @spec get(String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
   def get(service, account) do
-    case System.cmd("secret-tool", ["lookup", "service", service, "account", account], stderr_to_stdout: true) do
-      {value, 0} -> {:ok, String.trim_trailing(value)}
-      {message, status} -> {:error, {:secret_tool, status, String.trim(message)}}
+    case System.find_executable("secret-tool") do
+      nil ->
+        {:error, :unavailable}
+
+      executable ->
+        case System.cmd(executable, ["lookup", "service", service, "account", account], stderr_to_stdout: true) do
+          {value, 0} -> {:ok, String.trim_trailing(value)}
+          {message, status} -> {:error, {:secret_tool, status, String.trim(message)}}
+        end
     end
   end
 
   @spec put(String.t(), String.t(), String.t()) :: :ok | {:error, term()}
   def put(service, account, value) do
-    env = [
-      {"SYMPHONY_SECRET_VALUE", value},
-      {"SYMPHONY_SECRET_LABEL", "#{service} #{account}"},
-      {"SYMPHONY_SECRET_SERVICE", service},
-      {"SYMPHONY_SECRET_ACCOUNT", account}
-    ]
+    case System.find_executable("secret-tool") do
+      nil ->
+        {:error, :unavailable}
 
-    script =
-      "printf '%s' \"$SYMPHONY_SECRET_VALUE\" | secret-tool store --label \"$SYMPHONY_SECRET_LABEL\" service \"$SYMPHONY_SECRET_SERVICE\" account \"$SYMPHONY_SECRET_ACCOUNT\""
+      executable ->
+        env = [
+          {"SYMPHONY_SECRET_TOOL", executable},
+          {"SYMPHONY_SECRET_VALUE", value},
+          {"SYMPHONY_SECRET_LABEL", "#{service} #{account}"},
+          {"SYMPHONY_SECRET_SERVICE", service},
+          {"SYMPHONY_SECRET_ACCOUNT", account}
+        ]
 
-    case System.cmd("sh", ["-c", script], env: env, stderr_to_stdout: true) do
-      {_message, 0} -> :ok
-      {message, status} -> {:error, {:secret_tool, status, String.trim(message)}}
+        script =
+          "printf '%s' \"$SYMPHONY_SECRET_VALUE\" | \"$SYMPHONY_SECRET_TOOL\" store --label \"$SYMPHONY_SECRET_LABEL\" service \"$SYMPHONY_SECRET_SERVICE\" account \"$SYMPHONY_SECRET_ACCOUNT\""
+
+        case System.cmd("sh", ["-c", script], env: env, stderr_to_stdout: true) do
+          {_message, 0} -> :ok
+          {message, status} -> {:error, {:secret_tool, status, String.trim(message)}}
+        end
     end
   end
 end

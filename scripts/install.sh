@@ -79,15 +79,39 @@ open_url() {
   fi
 }
 
+settings_file() {
+  case "\$(uname -s)" in
+    Darwin) printf '%s\n' "\$HOME/Library/Application Support/Symphony/settings.json" ;;
+    *) printf '%s\n' "\${XDG_CONFIG_HOME:-\$HOME/.config}/symphony/settings.json" ;;
+  esac
+}
+
+symphony_port() {
+  settings="\$(settings_file)"
+  if [ -f "\$settings" ]; then
+    port="\$(sed -n 's/.*\"server_port\"[[:space:]]*:[[:space:]]*\\([0-9][0-9]*\\).*/\\1/p' "\$settings" | head -n 1)"
+    if [ -n "\$port" ]; then
+      printf '%s\n' "\$port"
+      return
+    fi
+  fi
+
+  printf '%s\n' "7957"
+}
+
+open_setup() {
+  open_url "http://127.0.0.1:\$(symphony_port)/setup"
+}
+
 case "\${1:-start}" in
   start)
     shift || true
-    (sleep 2; open_url "http://127.0.0.1:7957/setup") &
+    (sleep 2; open_setup) &
     exec "\$release_bin" start "\$@"
     ;;
   setup)
     shift || true
-    (sleep 2; open_url "http://127.0.0.1:7957/setup") &
+    (sleep 2; open_setup) &
     exec "\$release_bin" start "\$@"
     ;;
   status)
