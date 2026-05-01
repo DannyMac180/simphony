@@ -28,7 +28,7 @@ defmodule SymphonyElixir.WorkflowGenerator do
       "codex:",
       "  command: #{yaml(Map.fetch!(settings, "codex_command"))}",
       "  approval_policy:",
-      "    reject:",
+      "    granular:",
       "      sandbox_approval: true",
       "      rules: true",
       "      mcp_elicitations: true",

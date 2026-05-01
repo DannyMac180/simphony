@@ -13,6 +13,106 @@ defmodule SymphonyElixir.SettingsStore do
 
   @type settings :: map()
 
+  @spec setup_schema() :: map()
+  def setup_schema do
+    %{
+      "version" => 1,
+      "settings_path" => settings_path(),
+      "workflow_path" => workflow_path(),
+      "fields" => [
+        %{
+          "key" => "linear_api_key",
+          "label" => "Linear API key",
+          "required" => true,
+          "secret" => true,
+          "description" => "Personal Linear API key used to read and update issues."
+        },
+        %{
+          "key" => "linear_project_slug",
+          "label" => "Linear project slug",
+          "required" => true,
+          "secret" => false,
+          "description" => "The Linear project slug Symphony should poll for work."
+        },
+        %{
+          "key" => "repo_url",
+          "label" => "Repository clone URL",
+          "required" => true,
+          "secret" => false,
+          "description" => "Git clone URL copied into each issue workspace."
+        },
+        %{
+          "key" => "workspace_root",
+          "label" => "Workspace root",
+          "required" => true,
+          "secret" => false,
+          "description" => "Local directory where Symphony creates issue workspaces."
+        },
+        %{
+          "key" => "codex_command",
+          "label" => "Codex command",
+          "required" => true,
+          "secret" => false,
+          "default" => "codex app-server",
+          "description" => "Command Symphony uses to start Codex app-server."
+        },
+        %{
+          "key" => "active_states",
+          "label" => "Active Linear states",
+          "required" => false,
+          "secret" => false,
+          "default" => @default_active_states,
+          "description" => "Issue states Symphony treats as runnable."
+        },
+        %{
+          "key" => "terminal_states",
+          "label" => "Terminal Linear states",
+          "required" => false,
+          "secret" => false,
+          "default" => @default_terminal_states,
+          "description" => "Issue states that stop active agents and clean up workspaces."
+        },
+        %{
+          "key" => "server_port",
+          "label" => "Server port",
+          "required" => false,
+          "secret" => false,
+          "default" => @default_port,
+          "description" => "Local Phoenix server port."
+        }
+      ]
+    }
+  end
+
+  @spec setup_status() :: map()
+  def setup_status do
+    {settings_state, settings, settings_error} = loaded_settings_state()
+
+    %{
+      "configured" => configured?(),
+      "settings" => settings_state,
+      "settings_error" => settings_error,
+      "settings_path" => settings_path(),
+      "workflow_path" => workflow_path(),
+      "workflow_present" => File.regular?(workflow_path()),
+      "secret_store_available" => SecretStore.available?(),
+      "linear_api_key_present" => secret_present?(:linear_api_key),
+      "validation" => validation_status(settings)
+    }
+  end
+
+  @spec redacted_config() :: map()
+  def redacted_config do
+    %{
+      "settings" => form_values(),
+      "secrets" => %{
+        "linear_api_key" => if(secret_present?(:linear_api_key), do: "stored", else: "missing")
+      },
+      "settings_path" => settings_path(),
+      "workflow_path" => workflow_path()
+    }
+  end
+
   @spec default_port() :: pos_integer()
   def default_port, do: @default_port
 
@@ -94,6 +194,36 @@ defmodule SymphonyElixir.SettingsStore do
          :ok <- write_settings(settings),
          :ok <- write_workflow(settings) do
       {:ok, settings}
+    end
+  end
+
+  @spec update_setup(map()) :: {:ok, settings()} | {:error, term()} | {:error, term(), String.t()}
+  def update_setup(patch) when is_map(patch) do
+    form_values()
+    |> Map.merge(patch)
+    |> save_setup()
+  end
+
+  defp loaded_settings_state do
+    case load() do
+      {:ok, loaded_settings} -> {"present", loaded_settings, nil}
+      {:error, :not_configured} -> {"missing", %{}, "not_configured"}
+      {:error, reason} -> {"error", %{}, inspect(reason)}
+    end
+  end
+
+  defp validation_status(settings) do
+    case validate_nonsecret_settings(Map.merge(default_settings(), settings)) do
+      :ok -> %{"ok" => true, "missing" => []}
+      {:error, {:missing_settings, missing}, _message} -> %{"ok" => false, "missing" => missing}
+      {:error, reason, message} -> %{"ok" => false, "reason" => inspect(reason), "message" => message}
+    end
+  end
+
+  defp secret_present?(key) do
+    case SecretStore.get(key) do
+      {:ok, value} when is_binary(value) and value != "" -> true
+      _ -> false
     end
   end
 

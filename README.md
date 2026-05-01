@@ -34,6 +34,44 @@ First-run setup asks for:
 After setup, Symphony generates a local `WORKFLOW.md` in the user config directory and starts the
 orchestration runtime.
 
+## Agent-First Setup
+
+Symphony can also be installed and configured through a coding agent. Give your agent this
+instruction:
+
+> Install Symphony from `https://github.com/DannyMac180/simphony`, run the agent-readable setup
+> flow, ask me only for missing required values, and use Symphony's CLI to save configuration. Do
+> not hand-edit `WORKFLOW.md` unless Symphony reports that manual recovery is required.
+
+The agent should run:
+
+```bash
+curl -fsSL https://github.com/DannyMac180/simphony/releases/latest/download/install.sh | sh
+symphony setup schema --json
+symphony setup status --json
+```
+
+After collecting the required values, the agent can save setup by passing JSON on stdin:
+
+```bash
+symphony setup apply --json < setup.json
+symphony workflow validate
+symphony start
+```
+
+Later, the user can ask their agent to inspect or change Symphony configuration:
+
+```bash
+symphony config get --json
+symphony config set --json < patch.json
+symphony workflow validate
+symphony start
+```
+
+`symphony config get --json` never prints the Linear API key; it reports only whether the key is
+stored. Symphony remains the authority for settings, keychain storage, and generated `WORKFLOW.md`,
+while the agent mediates the conversation with the user.
+
 ## Development Setup
 
 ### Requirements
