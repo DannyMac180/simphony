@@ -10,30 +10,6 @@ _In this [demo video](.github/media/symphony-demo.mp4), Symphony monitors a Line
 > [!WARNING]
 > Symphony is a low-key engineering preview for testing in trusted environments.
 
-## Install and Run
-
-The packaged path is designed for a local one-line install on macOS and Linux:
-
-```bash
-curl -fsSL https://github.com/DannyMac180/simphony/releases/latest/download/install.sh | sh
-```
-
-The installer downloads the matching release artifact, installs a `symphony` wrapper in
-`~/.local/bin`, starts the local Phoenix server, and opens the setup wizard at
-`http://127.0.0.1:7957/setup`.
-
-First-run setup asks for:
-
-- Linear API key, stored in the OS keychain
-- Linear project slug
-- repository clone URL
-- workspace root
-- Codex command
-- active and terminal Linear states
-
-After setup, Symphony generates a local `WORKFLOW.md` in the user config directory and starts the
-orchestration runtime.
-
 ## Agent-First Setup
 
 Symphony can also be installed and configured through a coding agent. Give your agent this
@@ -74,6 +50,30 @@ symphony start
 `symphony config get --json` never prints the Linear API key; it reports only whether the key is
 stored. Symphony remains the authority for settings, keychain storage, and generated `WORKFLOW.md`,
 while the agent mediates the conversation with the user.
+
+## Human-First Setup
+
+The packaged path is designed for a local one-line install on macOS and Linux:
+
+```bash
+curl -fsSL https://github.com/DannyMac180/simphony/releases/latest/download/install.sh | sh
+```
+
+The installer downloads the matching release artifact, installs a `symphony` wrapper in
+`~/.local/bin`, starts the local Phoenix server, and opens the setup wizard at
+`http://127.0.0.1:7957/setup`.
+
+First-run setup asks for:
+
+- Linear API key, stored in the OS keychain
+- Linear project slug
+- repository clone URL
+- workspace root
+- Codex command
+- active and terminal Linear states
+
+After setup, Symphony generates a local `WORKFLOW.md` in the user config directory and starts the
+orchestration runtime.
 
 ## Development Setup
 
