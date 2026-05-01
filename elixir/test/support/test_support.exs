@@ -22,7 +22,14 @@ defmodule SymphonyElixir.TestSupport do
       alias SymphonyElixir.Workspace
 
       import SymphonyElixir.TestSupport,
-        only: [write_workflow_file!: 1, write_workflow_file!: 2, restore_env: 2, stop_default_http_server: 0]
+        only: [
+          write_workflow_file!: 1,
+          write_workflow_file!: 2,
+          restore_env: 2,
+          stop_default_http_server: 0,
+          stop_default_orchestrator: 0,
+          restart_default_orchestrator: 0
+        ]
 
       setup do
         workflow_root =
@@ -85,6 +92,26 @@ defmodule SymphonyElixir.TestSupport do
 
       _ ->
         :ok
+    end
+  end
+
+  def stop_default_orchestrator do
+    case Process.whereis(SymphonyElixir.Orchestrator) do
+      pid when is_pid(pid) ->
+        DynamicSupervisor.terminate_child(SymphonyElixir.RuntimeSupervisor, pid)
+
+      _ ->
+        :ok
+    end
+  end
+
+  def restart_default_orchestrator do
+    case Process.whereis(SymphonyElixir.Orchestrator) do
+      pid when is_pid(pid) ->
+        {:ok, pid}
+
+      _ ->
+        DynamicSupervisor.start_child(SymphonyElixir.RuntimeSupervisor, SymphonyElixir.Orchestrator)
     end
   end
 

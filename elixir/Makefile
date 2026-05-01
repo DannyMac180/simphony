@@ -1,9 +1,9 @@
-.PHONY: help all setup deps build fmt fmt-check lint test coverage ci dialyzer e2e
+.PHONY: help all setup deps build release fmt fmt-check lint test coverage ci dialyzer e2e
 
 MIX ?= mix
 
 help:
-	@echo "Targets: setup, deps, fmt, fmt-check, lint, test, coverage, dialyzer, e2e, ci"
+	@echo "Targets: setup, deps, build, release, fmt, fmt-check, lint, test, coverage, dialyzer, e2e, ci"
 
 setup:
 	$(MIX) setup
@@ -13,6 +13,9 @@ deps:
 
 build:
 	$(MIX) build
+
+release:
+	MIX_ENV=prod $(MIX) release symphony --overwrite
 
 fmt:
 	$(MIX) format

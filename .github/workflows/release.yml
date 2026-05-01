@@ -1,0 +1,94 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: build ${{ matrix.asset }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: elixir
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - asset: symphony-macos-arm64
+            runner: macos-14
+          - asset: symphony-macos-x64
+            runner: macos-13
+          - asset: symphony-linux-x64
+            runner: ubuntu-latest
+          - asset: symphony-linux-arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up mise tools
+        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          install: true
+          cache: true
+          working_directory: elixir
+
+      - name: Build release
+        env:
+          MIX_ENV: prod
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get --only prod
+          mix release symphony --overwrite
+          mkdir -p ../dist
+          release_tar="$(find _build/prod -maxdepth 2 -name 'symphony-*.tar.gz' -print -quit)"
+          cp "$release_tar" "../dist/${{ matrix.asset }}.tar.gz"
+
+      - name: Smoke test release
+        run: |
+          mkdir -p /tmp/symphony-smoke
+          tar -xzf "../dist/${{ matrix.asset }}.tar.gz" -C /tmp/symphony-smoke
+          /tmp/symphony-smoke/bin/symphony eval "Application.put_env(:symphony_elixir, :server_port_override, 0); Application.ensure_all_started(:symphony_elixir); IO.puts(SymphonyElixir.Config.server_port())"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}.tar.gz
+
+  publish:
+    name: publish release assets
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Prepare installer and checksums
+        run: |
+          cp scripts/install.sh dist/install.sh
+          chmod +x dist/install.sh
+          cd dist
+          sha256sum *.tar.gz install.sh > checksums.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836 # v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/install.sh
+            dist/checksums.txt

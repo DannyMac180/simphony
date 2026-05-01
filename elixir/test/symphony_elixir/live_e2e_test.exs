@@ -449,7 +449,7 @@ defmodule SymphonyElixir.LiveE2ETest do
 
     try do
       if is_pid(orchestrator_pid) do
-        assert :ok = Supervisor.terminate_child(SymphonyElixir.Supervisor, SymphonyElixir.Orchestrator)
+        assert :ok = stop_default_orchestrator()
       end
 
       Workflow.set_workflow_file_path(workflow_file)
@@ -545,7 +545,7 @@ defmodule SymphonyElixir.LiveE2ETest do
 
   defp restart_orchestrator_if_needed do
     if is_nil(Process.whereis(SymphonyElixir.Orchestrator)) do
-      case Supervisor.restart_child(SymphonyElixir.Supervisor, SymphonyElixir.Orchestrator) do
+      case restart_default_orchestrator() do
         {:ok, _pid} -> :ok
         {:error, {:already_started, _pid}} -> :ok
       end
