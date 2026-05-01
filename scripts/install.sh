@@ -144,10 +144,13 @@ case "\${1:-start}" in
     ;;
   setup)
     shift || true
-    if should_open_browser "\$@"; then
-      (sleep 2; open_setup) &
+    if [ "\$#" -eq 0 ] || [ "\${1#-}" != "\$1" ]; then
+      if should_open_browser "\$@"; then
+        (sleep 2; open_setup) &
+      fi
+      exec "\$release_bin" start "\$@"
     fi
-    exec "\$release_bin" start "\$@"
+    exec "\$release_bin" setup "\$@"
     ;;
   status)
     exec "\$release_bin" pid
