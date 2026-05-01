@@ -12,8 +12,9 @@ _In this [demo video](.github/media/symphony-demo.mp4), Symphony monitors a Line
 
 ## Agent-First Setup
 
-Symphony can also be installed and configured through a coding agent. Give your agent this
-instruction:
+Symphony can be installed and configured through a coding agent. 
+
+**Give your agent this instruction:**
 
 > Install Symphony from `https://github.com/DannyMac180/simphony`, run the agent-readable setup
 > flow, ask me only for missing required values, and use Symphony's CLI to save configuration. Do
