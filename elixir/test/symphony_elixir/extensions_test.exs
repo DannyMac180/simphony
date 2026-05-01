@@ -127,11 +127,26 @@ defmodule SymphonyElixir.ExtensionsTest do
     assert {:ok, _pid} = Supervisor.restart_child(SymphonyElixir.Supervisor, WorkflowStore)
   end
 
-  test "workflow store init stops on missing workflow file" do
+  test "workflow store init starts in setup-ready state when workflow file is missing" do
     missing_path = Path.join(Path.dirname(Workflow.workflow_file_path()), "MISSING_WORKFLOW.md")
     Workflow.set_workflow_file_path(missing_path)
 
-    assert {:stop, {:missing_workflow_file, ^missing_path, :enoent}} = WorkflowStore.init([])
+    assert {:ok, %WorkflowStore.State{path: ^missing_path, stamp: nil, workflow: nil}} = WorkflowStore.init([])
+  end
+
+  test "workflow store recovers from setup-ready missing workflow state" do
+    ensure_workflow_store_running()
+    missing_path = Path.join(Path.dirname(Workflow.workflow_file_path()), "SETUP_MISSING_WORKFLOW.md")
+    Workflow.set_workflow_file_path(missing_path)
+
+    assert :ok = Supervisor.terminate_child(SymphonyElixir.Supervisor, WorkflowStore)
+    assert {:ok, _pid} = Supervisor.restart_child(SymphonyElixir.Supervisor, WorkflowStore)
+    assert {:error, :enoent} = WorkflowStore.current()
+
+    write_workflow_file!(missing_path, prompt: "Recovered workflow prompt")
+
+    assert :ok = WorkflowStore.force_reload()
+    assert {:ok, %{prompt: "Recovered workflow prompt"}} = WorkflowStore.current()
   end
 
   test "workflow store start_link and poll callback cover missing-file error paths" do

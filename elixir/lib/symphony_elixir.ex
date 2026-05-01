@@ -21,15 +21,19 @@ defmodule SymphonyElixir.Application do
 
   @impl true
   def start(_type, _args) do
+    if Application.get_env(:symphony_elixir, :runtime_mode, :managed) != :workflow do
+      SymphonyElixir.SettingsStore.apply_workflow_path()
+    end
+
     :ok = SymphonyElixir.LogFile.configure()
 
     children = [
       {Phoenix.PubSub, name: SymphonyElixir.PubSub},
       {Task.Supervisor, name: SymphonyElixir.TaskSupervisor},
       SymphonyElixir.WorkflowStore,
-      SymphonyElixir.Orchestrator,
-      SymphonyElixir.HttpServer,
-      SymphonyElixir.StatusDashboard
+      {DynamicSupervisor, strategy: :one_for_one, name: SymphonyElixir.RuntimeSupervisor},
+      SymphonyElixir.OrchestratorManager,
+      SymphonyElixir.HttpServer
     ]
 
     Supervisor.start_link(

@@ -4,7 +4,7 @@ defmodule SymphonyElixir.Config do
   """
 
   alias SymphonyElixir.Config.Schema
-  alias SymphonyElixir.Workflow
+  alias SymphonyElixir.{SettingsStore, Workflow}
 
   @default_prompt_template """
   You are working on a Linear issue.
@@ -87,7 +87,15 @@ defmodule SymphonyElixir.Config do
   def server_port do
     case Application.get_env(:symphony_elixir, :server_port_override) do
       port when is_integer(port) and port >= 0 -> port
-      _ -> settings!().server.port
+      _ -> configured_server_port()
+    end
+  end
+
+  @spec server_host() :: String.t()
+  def server_host do
+    case settings() do
+      {:ok, settings} -> settings.server.host
+      {:error, _reason} -> "127.0.0.1"
     end
   end
 
@@ -130,6 +138,13 @@ defmodule SymphonyElixir.Config do
 
       true ->
         :ok
+    end
+  end
+
+  defp configured_server_port do
+    case settings() do
+      {:ok, settings} -> settings.server.port
+      {:error, _reason} -> SettingsStore.default_port()
     end
   end
 

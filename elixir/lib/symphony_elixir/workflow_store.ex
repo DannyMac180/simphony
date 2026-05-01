@@ -48,13 +48,17 @@ defmodule SymphonyElixir.WorkflowStore do
 
   @impl true
   def init(_opts) do
-    case load_state(Workflow.workflow_file_path()) do
+    path = Workflow.workflow_file_path()
+
+    case load_state(path) do
       {:ok, state} ->
         schedule_poll()
         {:ok, state}
 
       {:error, reason} ->
-        {:stop, reason}
+        log_reload_error(path, reason)
+        schedule_poll()
+        {:ok, %State{path: path, stamp: nil, workflow: nil}}
     end
   end
 
@@ -63,6 +67,9 @@ defmodule SymphonyElixir.WorkflowStore do
     case reload_state(state) do
       {:ok, new_state} ->
         {:reply, {:ok, new_state.workflow}, new_state}
+
+      {:error, reason, %{workflow: nil} = new_state} ->
+        {:reply, {:error, reason}, new_state}
 
       {:error, _reason, new_state} ->
         {:reply, {:ok, new_state.workflow}, new_state}
@@ -116,6 +123,9 @@ defmodule SymphonyElixir.WorkflowStore do
 
   defp reload_current_path(path, state) do
     case current_stamp(path) do
+      {:ok, _stamp} when is_nil(state.stamp) ->
+        reload_path(path, state)
+
       {:ok, stamp} when stamp == state.stamp ->
         {:ok, state}
 

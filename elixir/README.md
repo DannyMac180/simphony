@@ -53,7 +53,38 @@ mise install
 mise exec -- elixir --version
 ```
 
-## Run
+## Packaged Run
+
+For end users on macOS and Linux, the intended path is:
+
+```bash
+curl -fsSL https://github.com/DannyMac180/simphony/releases/latest/download/install.sh | sh
+```
+
+The installer places a `symphony` wrapper in `~/.local/bin`, backed by a self-contained Elixir
+release artifact for the current OS/architecture.
+
+Commands:
+
+```bash
+symphony start   # starts the local server and opens /setup
+symphony setup   # starts the local server and opens /setup
+symphony status  # reports the release process PID when available
+symphony stop    # stops the release process when running as a release
+```
+
+Managed setup writes non-secret settings to:
+
+- macOS: `~/Library/Application Support/Symphony/settings.json`
+- Linux: `$XDG_CONFIG_HOME/symphony/settings.json` or `~/.config/symphony/settings.json`
+
+The Linear API key is stored in the OS keychain. On Linux, `secret-tool` from Secret Service/libsecret
+must be installed and unlocked. Symphony refuses to save the token as plaintext when keychain access
+is unavailable.
+
+The generated managed workflow lives beside settings as `WORKFLOW.md`.
+
+## Development Run
 
 ```bash
 git clone https://github.com/openai/symphony
@@ -79,6 +110,14 @@ Optional flags:
 
 - `--logs-root` tells Symphony to write logs under a different directory (default: `./log`)
 - `--port` also starts the Phoenix observability service (default: disabled)
+
+The development escript also supports the managed setup commands:
+
+```bash
+./bin/symphony start --no-open
+./bin/symphony setup --no-open
+./bin/symphony status
+```
 
 The `WORKFLOW.md` file uses YAML front matter for configuration, plus a Markdown body used as the
 Codex session prompt.
@@ -156,6 +195,8 @@ codex:
 The observability UI now runs on a minimal Phoenix stack:
 
 - LiveView for the dashboard at `/`
+- LiveView setup wizard at `/setup`
+- LiveView settings editor at `/settings`
 - JSON API for operational debugging under `/api/v1/*`
 - Bandit as the HTTP server
 - Phoenix dependency static assets for the LiveView client bootstrap
